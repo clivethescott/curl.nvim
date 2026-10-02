@@ -1,33 +1,21 @@
 local M = {}
 
-local Job = require("plenary.job")
 local notify = require("curl.notifications")
 
----comment Run jq through plenary
+---Pipe the JSON through jq to pretty-print it
 ---@param unformatted_json string
 ---@return table
 local function run_jq(unformatted_json)
-	local result = {}
+	local res = vim.system({ "jq", "." }, { stdin = unformatted_json, text = true }):wait()
 
-	Job:new({
-		command = "jq",
-		args = { "." },
-		writer = unformatted_json,
-		on_stdout = function(_, line)
-			table.insert(result, line)
-		end,
-		on_exit = function(_, return_val)
-			if return_val ~= 0 then
-				vim.schedule(function()
-					notify.error("Failed to parse JSON")
-				end)
+	if res.code ~= 0 then
+		vim.schedule(function()
+			notify.error("Failed to parse JSON")
+		end)
+		return { unformatted_json }
+	end
 
-				result = { unformatted_json }
-			end
-		end,
-	}):sync()
-
-	return result
+	return vim.split(res.stdout, "\n", { trimempty = true })
 end
 
 local function trim(s)
